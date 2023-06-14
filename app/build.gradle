@@ -17,7 +17,9 @@ android {
     buildTypes {
         release {
             minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
@@ -28,6 +30,7 @@ android {
 }
 
 dependencies {
+    implementation 'org.bouncycastle:bcprov-lts8on:2.73.0'
     implementation 'com.google.guava:guava:32.0.0-android'
     compileOnly 'de.robv.android.xposed:api:82'
 }
