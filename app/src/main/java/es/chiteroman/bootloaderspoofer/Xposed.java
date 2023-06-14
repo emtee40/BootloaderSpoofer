@@ -11,19 +11,27 @@ import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
-import de.robv.android.xposed.callbacks.XCallback;
 
-public class Xposed implements IXposedHookLoadPackage, IXposedHookZygoteInit {
+public class Xposed implements IXposedHookLoadPackage {
+    private static final String[] classesToHook = {"com.android.org.conscrypt.OpenSSLX509Certificate", "com.google.android.gms.org.conscrypt.OpenSSLX509Certificate", "org.bouncycastle.jcajce.provider.asymmetric.x509.X509CertificateImpl"};
     private static final HOOK hook = new HOOK();
+
+    @Override
+    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
+        for (String className : classesToHook) {
+            Class<?> clazz = XposedHelpers.findClassIfExists(className, lpparam.classLoader);
+            if (clazz == null) continue;
+            XposedHelpers.findAndHookMethod(clazz, "getExtensionValue", String.class, hook);
+        }
+    }
 
     private static final class HOOK extends XC_MethodHook {
         public HOOK() {
-            super(XCallback.PRIORITY_HIGHEST);
+            super(Integer.MAX_VALUE);
         }
 
         @Override
@@ -32,8 +40,6 @@ public class Xposed implements IXposedHookLoadPackage, IXposedHookZygoteInit {
             String oid = (String) param.args[0];
 
             if (oid == null || bytes == null) return;
-
-            XposedBridge.log("OID: " + oid + " byte array lenght: " + bytes.length);
 
             if (!oid.equalsIgnoreCase("1.3.6.1.4.1.11129.2.1.17")) return;
 
@@ -78,17 +84,5 @@ public class Xposed implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
             param.setResult(bytes);
         }
-    }
-
-    @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
-        Class<?> clazz = XposedHelpers.findClass("com.android.org.conscrypt.OpenSSLX509Certificate", lpparam.classLoader);
-        XposedHelpers.findAndHookMethod(clazz, "getExtensionValue", String.class, hook);
-    }
-
-    @Override
-    public void initZygote(StartupParam startupParam) {
-        Class<?> clazz = XposedHelpers.findClass("com.android.org.conscrypt.OpenSSLX509Certificate", null);
-        XposedHelpers.findAndHookMethod(clazz, "getExtensionValue", String.class, hook);
     }
 }
