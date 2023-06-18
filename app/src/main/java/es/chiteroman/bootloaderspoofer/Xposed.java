@@ -10,28 +10,42 @@ import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 
+import java.security.KeyStore;
+import java.security.KeyStoreSpi;
+import java.security.cert.Certificate;
+
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import de.robv.android.xposed.callbacks.XCallback;
 
 public class Xposed implements IXposedHookLoadPackage {
-    private static final String[] classesToHook = {"com.android.org.conscrypt.OpenSSLX509Certificate", "com.google.android.gms.org.conscrypt.OpenSSLX509Certificate", "org.bouncycastle.jcajce.provider.asymmetric.x509.X509CertificateImpl"};
     private static final HOOK hook = new HOOK();
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
-        for (String className : classesToHook) {
-            Class<?> clazz = XposedHelpers.findClassIfExists(className, lpparam.classLoader);
-            if (clazz == null) continue;
-            XposedHelpers.findAndHookMethod(clazz, "getExtensionValue", String.class, hook);
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            KeyStoreSpi keyStoreSpi = (KeyStoreSpi) XposedHelpers.getObjectField(keyStore, "keyStoreSpi");
+            XposedHelpers.findAndHookMethod(keyStoreSpi.getClass(), "engineGetCertificateChain", String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Certificate[] certificates = (Certificate[]) param.getResultOrThrowable();
+                    for (Certificate certificate : certificates) {
+                        XposedHelpers.findAndHookMethod(certificate.getClass(), "getExtensionValue", String.class, hook);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            XposedBridge.log(t);
         }
     }
 
     private static final class HOOK extends XC_MethodHook {
         public HOOK() {
-            super(Integer.MAX_VALUE);
+            super(XCallback.PRIORITY_HIGHEST);
         }
 
         @Override
@@ -78,9 +92,6 @@ public class Xposed implements IXposedHookLoadPackage {
 
             bytes[patchDeviceLockedIndex] = 1;
             bytes[patchVerifiedBootStateIndex] = 0;
-
-            XposedBridge.log("Patched deviceLocked at " + patchDeviceLockedIndex);
-            XposedBridge.log("Patched verifiedBootState at " + patchVerifiedBootStateIndex);
 
             param.setResult(bytes);
         }

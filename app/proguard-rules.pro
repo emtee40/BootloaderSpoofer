@@ -20,4 +20,4 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
--keep class es.chiteroman.bootloaderspoofer.Xposed
+-keep class es.chiteroman.bootloaderspoofer.Xposed {*;}
